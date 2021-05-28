@@ -6,32 +6,29 @@ import diagnostic_updater
 import roboclaw_driver.roboclaw_driver as roboclaw
 import rospy
 import tf
-from geometry_msgs.msg import Quaternion, Twist
-from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Twist
+from roboclaw_node.msg import LoadMotorState
 
 __author__ = "bwbazemore@uga.edu (Brad Bazemore)"
 
 
 # TODO need to find some better was of handling OSerror 11 or preventing it, any ideas?
 
-class EncoderOdom:
-    def __init__(self, ticks_per_meter):
-        self.TICKS_PER_METER = ticks_per_meter
-        self.odom_pub = rospy.Publisher('/load_odom', Odometry, queue_size=10)
+class Publisher:
+    def __init__(self, ticks_per_meter, newton_per_milliamp):
+        self.TICKS_PER_METER = float(ticks_per_meter)
+        self.NEWTON_PER_MILLIAMP = float(newton_per_milliamp)
+        self.pub = rospy.Publisher('/load_motor_state', LoadMotorState, queue_size=10)
 
-    def publish_odom(self, x, vx):
-        current_time = rospy.Time.now()
+    def publish(self, ticks, ticks_per_second, milliamps):
+        msg = LoadMotorState()
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = 'base_link'
+        msg.position = ticks / self.TICKS_PER_METER
+        msg.velocity = ticks_per_second / self.TICKS_PER_METER
+        msg.force    = milliamps * self.NEWTON_PER_MILLIAMP
 
-        odom = Odometry()
-        odom.header.stamp = current_time
-        odom.header.frame_id = 'odom'
-
-        odom.pose.pose.position.x = x
-
-        odom.child_frame_id = 'load_1d'
-        odom.twist.twist.linear.x = vx
-
-        self.odom_pub.publish(odom)
+        self.pub.publish(msg)
 
 
 class Node:
@@ -96,8 +93,9 @@ class Node:
 
         self.MAX_SPEED = float(rospy.get_param("~max_speed", "2.0"))
         self.TICKS_PER_METER = float(rospy.get_param("~ticks_per_meter", "4342.2"))
+        self.NEWTON_PER_MILLIAMP = float(rospy.get_param("~newton_per_milliamp", "0.01"))
 
-        self.encodm = EncoderOdom(self.TICKS_PER_METER)
+        self.publisher = Publisher(self.TICKS_PER_METER, self.NEWTON_PER_MILLIAMP)
         self.last_set_speed_time = rospy.get_rostime()
 
         rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
@@ -125,13 +123,14 @@ class Node:
                     rospy.logdebug(e)
 
             # TODO need find solution to the OSError11 looks like sync problem with serial
-            status1, x1, vx1, crc1 = None, None, None, None
+            status1, x1, vx1, cur1, crc1 = None, None, None, None, None
 
             try:
                 status1, x1, crc1 = roboclaw.ReadEncM1(self.address)
                 _, vx1, _ = roboclaw.ReadSpeedM1(self.address)
-                rospy.loginfo(" Encoders: %d [ticks], %d [ticks/sec]" % (x1, vx1))
-                self.encodm.publish_odom(x1, vx1)
+                _, cur1, _ = roboclaw.ReadCurrents(self.address)
+                # rospy.loginfo(" Encoders: %d [ticks], %d [ticks/sec], %d [mAmps]" % (x1, vx1, cur1 * 10))
+                self.publisher.publish(x1, vx1, cur1 * 10)
                 self.updater.update()
             except ValueError:
                 pass
@@ -143,7 +142,7 @@ class Node:
 
     def cmd_vel_callback(self, twist):
         current_time = rospy.get_rostime()
-        # if current_time - self.last_set_speed_time < rospy.Duration(0.02): return
+        if current_time - self.last_set_speed_time < rospy.Duration(0.1): return
         self.last_set_speed_time = rospy.get_rostime()
 
         linear_x = twist.linear.x

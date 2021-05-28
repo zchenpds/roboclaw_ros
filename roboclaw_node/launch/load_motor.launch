@@ -6,14 +6,16 @@
     <arg name="address" default="128"/>
     <arg name="max_speed" default="2.0"/>
     <arg name="ticks_per_meter" default="4342.2"/>
+    <arg name="newton_per_milliamp" default="0.01"/>
     <arg name="run_diag" default="true"/>
 
-    <node if="$(arg run_diag)" pkg="roboclaw_node" type="roboclaw_node.py" name="roboclaw_node" output="screen">
+    <node if="$(arg run_diag)" pkg="roboclaw_node" type="load_motor_node.py" name="load_motor_node" output="screen">
         <param name="~dev" value="$(arg dev)"/>
         <param name="~baud" value="$(arg baud)"/>
         <param name="~address" value="$(arg address)"/>
         <param name="~max_speed" value="$(arg max_speed)"/>
         <param name="~ticks_per_meter" value="$(arg ticks_per_meter)"/>
+        <param name="~newton_per_milliamp" value="$(arg newton_per_milliamp)"/>
     </node>
 
     <node pkg="diagnostic_aggregator" type="aggregator_node"

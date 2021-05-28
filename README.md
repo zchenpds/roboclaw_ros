@@ -4,8 +4,6 @@
 
 This is the ROS driver for the Roboclaw motor controllers made by [Ion Motion Control](http://www.ionmc.com/).
 
-#HELP: I have been busy with another project that is not using robo claw. Message me if you want to become a contributer and help keep this thing alive!
-
 ## Before you begin
 Before you use this package you need to calibrate the velocity PID on the Roboclaw.  This will requare the
 installation of the free software [IonMotion](http://downloads.ionmc.com/software/IonMotion/ionmotion.htm) (Windows only).
@@ -40,7 +38,24 @@ git clone https://github.com/sonyccd/roboclaw_ros.git
 cd <workspace>
 catkin_make
 source devel/setup.bash
-roslaunch roboclaw_node roboclaw.launch
+roslaunch roboclaw_node load_motor.launch
+```
+
+* Control the motor speed by publishing on "/cmd_vel"
+```bash
+rostopic pub /cmd_vel geometry_msgs/Twist "linear:
+  x: 1.0
+  y: 0.0
+  z: 0.0
+angular:
+  x: 0.0
+  y: 0.0
+  z: 0.0"
+```
+
+* Check the load motor state by running
+```bash
+rostopic echo /load_motor_state
 ```
 
 ## Parameters
@@ -53,7 +68,7 @@ The launch file can be configure at the command line with arguments, by changing
 |address|128|The address the Roboclaw is set to, 128 is 0x80|
 |max_speed|2.0|Max speed allowed for motors in meters per second|
 |ticks_per_meter|4342.2|The number of encoder ticks per meter of movement|
-|base_width|0.315|Width from one wheel edge to another in meters|
+|newton_per_milliamp|0.01|The multiplicative factor to convert armature current to force applied on the load|
 
 ## Topics
 ###Subscribed
